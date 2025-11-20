@@ -5,7 +5,7 @@ finding_exoplanet
 Proposed steps for project:
 Using lightkurve python package, get light curves.
 1. Get list of stars, some with confirmed exoplanets, some without. For the stars with confirmed exoplanets, also get orbital periods
-2. For each of those stars, use lightkurve to get the lightcurves. Tutorial
+2. For each of those stars, use lightkurve to get the lightcurves. [Tutorial](https://lightkurve.github.io/lightkurve/tutorials/1-getting-started/searching-for-data-products.html#2.-Searching-for-Light-Curves)
 3. Feed lightcurves into models of our choice
   - Bayesian Model
     - From lecture on detecting periodic signals
