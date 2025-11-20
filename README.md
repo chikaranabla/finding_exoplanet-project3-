@@ -11,3 +11,5 @@ Using lightkurve python package, get light curves.
     - From lecture on detecting periodic signals
   - ML Model
     - Idk what architecture works best, this is something we should choose
+
+[google docs](https://docs.google.com/document/d/1bsr_a2apC2yBuetPcACo5ehVRY4nG8DJhY4eoFYQ_L8)
