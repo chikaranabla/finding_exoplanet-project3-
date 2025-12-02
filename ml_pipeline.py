@@ -94,7 +94,6 @@ for epoch in range(num_epochs):
     model.train()
     for x, y in train_loader:
         x, y = x.to(device), y.to(device)
-        optimizer.zero_grad()
         pred = model(x)
         loss = criterion(pred, y)
         
