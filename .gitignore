@@ -1,0 +1,13 @@
+# Ignore the actual data (too large for GitHub)
+processed_data_new/
+processed_data/
+fast_dataset/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Ignore massive CSVs (Team should download these separately)
+*.csv
+!dataset_key.csv
