@@ -1,5 +1,5 @@
-# finding_exoplanet
-finding_exoplanet
+# Exoplanet Detection Using Deep Learning
+Authors: Iori Adachi, Isabella Deutsch, Levi Galvan, Chikara Oe, Zack Schuder, Linus Upson
 
 
 Proposed steps for project:
