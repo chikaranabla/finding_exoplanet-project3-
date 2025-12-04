@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, random_split
 
-#light curve data
+#light curve data need to change to adjust local and global data
 class LightCurveDataset(Dataset):
     def __init__(self, x_path, y_path):
         self.x = np.load(x_path)
@@ -22,43 +22,117 @@ class LightCurveDataset(Dataset):
         return self.x[idx], self.y[idx]
 
 
-#CNN model
+#CNN model:two disjoinit conv colomns(local and global), after that single MLP layer
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
+        
        
-        self.conv1 = nn.Sequential(
-            nn.Conv1d(in_channels=, out_channels=, kernel_size=, stride=, padding=),
+       #for local cnn column(input is (1, 201)?)
+        self.local_conv1 = nn.Sequential(
+            nn.Conv1d(in_channels=1, out_channels=16, kernel_size=5),
             nn.ReLU(),
-            nn.MaxPool1d()
-        )
-       
-        self.conv2 = nn.Sequential(
-            nn.Conv1d(in_channels=, out_channels=, kernel_size=, stride=, padding=),
+            nn.Conv1d(in_channels=16, out_channels=16, kernel_size=5),
             nn.ReLU(),
-            nn.MaxPool1d()
+            nn.MaxPool1d(kernel_size=7, stride=2)
         )
+        #output_shape: (16, 94)
        
-        self.conv3 = nn.Sequential(
-            nn.Conv1d(in_channels=, out_channels=, kernel_size=, stride=, padding=),
+        self.local_conv2 = nn.Sequential(
+            nn.Conv1d(in_channels=16, out_channels=32, kernel_size=5),
             nn.ReLU(),
-            nn.MaxPool1d()
+            nn.Conv1d(in_channels=32, out_channels=32, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=7, stride=2)
         )
+        #output_shape: (32, 40)
+        
+        
+        #for global cnn column(input is (1, 2001)?)
+        self.global_conv1 = nn.Sequential(
+            nn.Conv1d(in_channels=1, out_channels=16, kernel_size=5),
+            nn.ReLU(),
+            nn.Conv1d(in_channels=16, out_channels=16, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=2)
+        )
+        #output shape: (16, 995)
+        
+        
+        self.global_conv2 = nn.Sequential(
+            nn.Conv1d(in_channels=16, out_channels=32, kernel_size=5),
+            nn.ReLU(),
+            nn.Conv1d(in_channels=32, out_channels=32, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=2)
+        )
+        #output_shape: (32, 492)
+        
+        self.global_conv3 = nn.Sequential(
+            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=5),
+            nn.ReLU(),
+            nn.Conv1d(in_channels=64, out_channels=64, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=2)
+        )
+        #output_shape: (64, 240)
+        
+        self.global_conv4 = nn.Sequential(
+            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=5),
+            nn.ReLU(),
+            nn.Conv1d(in_channels=128, out_channels=128, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=2)
+        )
+        #output_shape: (128, 114)
+        
+        self.global_conv5 = nn.Sequential(
+            nn.Conv1d(in_channels=128, out_channels=256, kernel_size=5),
+            nn.ReLU(),
+            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=2)
+        )
+        #output_shape: (256, 51)
+        
+        #for mlp layer
+        self.fc1 = nn.Linear(in_features=32*40 + 256*51, out_features=512)
        
-        self.fc1 = nn.Linear(in_features=, out_features=)
-       
-        self.fc2 = nn.Linear(in_features=, out_features=)
-       
+        self.fc2 = nn.Linear(in_features=512, out_features=512)
+        
+        self.fc3 = nn.Linear(in_features=512, out_features=512)
+        
+        self.fc4 = nn.Linear(in_features=512, out_features=512)
+        
+        self.fc5 = nn.Linear(in_features=512, out_features=1)
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
        
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = torch.flatten(x, 1)
+    def forward(self, local_x, global_x):
+        
+        #local cnn column
+        local_x = self.local_conv1(local_x)
+        local_x = self.local_conv2(local_x)
+        local_x = torch.flatten(local_x, 1)
+        
+        
+        
+        #global cnn column
+        global_x = self.global_conv1(global_x)
+        global_x = self.global_conv2(global_x)
+        global_x = self.global_conv3(global_x)
+        global_x = self.global_conv4(global_x)
+        global_x = self.global_conv5(global_x)
+        global_x = torch.flatten(global_x, 1)
+        
+        
+        #mlp layer
+        x = torch.cat((local_x, global_x), 1)
         x = self.relu(self.fc1(x))
-        x = self.sigmoid(self.fc2(x))
+        x = self.relu(self.fc2(x))
+        x = self.relu(self.fc3(x))
+        x = self.relu(self.fc4(x))
+        x = self.sigmoid(self.fc5(x))
         return x
     
     
@@ -69,8 +143,8 @@ batch_size = 128
 train_size = 0.8
 val_size = 0.1
     
-#load data
-dataset = LightCurveDataset(x_path = "x_data.npy", y_path = "y_data.npy")
+#load data need to change to adjust local and global data
+dataset = LightCurveDataset(x_path = "local_x_data.npy", y_path = "local_y_data.npy")
 n = len(dataset)
 num_train = int(n * train_size)
 num_val = int(n * val_size)
@@ -89,18 +163,106 @@ model = CNN().to(device)
 criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr = learning_rate)
 
+
+train_losses = []
+train_accs = []
+val_losses = []
+val_accs = []
+
+
 #training loop
 for epoch in range(num_epochs):
     model.train()
     for x, y in train_loader:
         x, y = x.to(device), y.to(device)
-        pred = model(x)
+        pred = model(local_x, global_x)  #how to input local and global data? maybe neet to change
         loss = criterion(pred, y)
         
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        accuracy = 
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}, Accuracy: {accuracy.item():.4f}")
+        train_loss += loss.item() * y.size(0)
+        train_acc += (pred.round() == y).float().sum().item()
+        
+    train_loss /= len(train_loader.dataset)
+    train_acc /= len(train_loader.dataset)
+    
+    #store history
+    train_losses.append(train_loss)
+    train_accs.append(train_acc)
+    
+        
+    #validation
+    model.eval()
+    val_loss = 0
+    val_acc = 0
+    with torch.no_grad():
+        for local_x, global_x, y in val_loader:
+            local_x, global_x, y = local_x.to(device), global_x.to(device), y.to(device)
+            
+            pred = model(local_x, global_x)
+            loss = criterion(pred, y)
+            
+            val_loss += loss.item() * y.size(0)
+            val_acc += (pred.round() == y).float().sum().item()
+            
+    val_loss /= len(val_loader.dataset)
+    val_acc /= len(val_loader.dataset)
+    
+    #store history
+    val_losses.append(val_loss)
+    val_accs.append(val_acc)
+    
+    #print progress
+    print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Accuracy: {train_acc:.4f}, Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
+    
+    
+#plot results
+epochs = range(1, num_epochs+1)
+plt.figure(figsize=(12, 5))
+
+#plot training and validation loss
+plt.subplot(1, 2, 1)
+plt.plot(epochs, train_losses, 'r', label='Training loss')
+plt.plot(epochs, val_losses, 'b', label='Validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss')
+plt.legend()
+
+#plot training and validation accuracy
+plt.subplot(1, 2, 2)
+plt.plot(epochs, train_accs, 'r', label='Training accuracy')
+plt.plot(epochs, val_accs, 'b', label='Validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.title('Training and Validation Accuracy')
+plt.legend()
+plt.show()
+    
+    
+    
+#test
+model.eval()
+with torch.no_grad():
+    for local_x, global_x, y in test_loader:
+        local_x, global_x, y = local_x.to(device), global_x.to(device), y.to(device)
+        
+        pred = model(local_x, global_x)
+        loss = criterion(pred, y)
+        
+        test_loss += loss.item() * y.size(0)
+        test_acc += (pred.round() == y).float().sum().item()
+        
+    test_loss /= len(test_loader.dataset)
+    test_acc /= len(test_loader.dataset)
+    
+    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
+    
+    
+    
+        
+        
+
 
