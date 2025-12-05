@@ -18,7 +18,12 @@ It produces two distinct outputs:
    Ensure `q1_q8_koi_2025.02.03_04.12.15.csv` is in the root folder
    Run `python pipeline_test.py`.
    * This will download the stars, process them, and save them into a folder called `pipeline_output_v1/`.
-   * **Note:** It creates checkpoints. The notebook may hang after several stars. If it stops, restart the kernel and re-run the pipeline (it resumes).
+   * **Note:**
+      * It creates checkpoints. The notebook may hang after several stars. If it stops, restart the kernel and re-run the pipeline (it resumes).
+      * To create more rows, check my comments in the `run_pipeline` function where I change the parameters from 300->1000 and 300->. The synthetic data will help because there aren't many planets with 50-day periods.
+      * *Pre-Filtering*: Only downloads planets >50 days and <4 Earth Radii (saving you time).
+      * *Anti-Hanging Protection*: Added a `timeout=60s` and a "Single Quarter Fallback" so it doesn't get stuck downloading.
+      * 
 3. **Check the Data:**
    The last cell creates visuals.
 
@@ -30,4 +35,5 @@ It produces two distinct outputs:
 * Source: NASA Exoplanet Archive (MAST) via `lightkurve`.
 * Resolution: Default is set to download Quarter 1 only for speed (`USE_SINGLE_QUARTER = True` in script). Toggle to `False` to download full 4-year missions (warning: takes hours).
 * Parallelism: Uses `ThreadPoolExecutor` with 4 workers.
+
 
