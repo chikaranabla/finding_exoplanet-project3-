@@ -23,7 +23,7 @@ It produces two distinct outputs:
       * To create more rows, check my comments in the `run_pipeline` function where I change the parameters from 300->1000 and 300->. The synthetic data will help because there aren't many planets with 50-day periods.
       * *Pre-Filtering*: Only downloads planets >50 days and <4 Earth Radii (saving you time).
       * *Anti-Hanging Protection*: Added a `timeout=60s` and a "Single Quarter Fallback" so it doesn't get stuck downloading.
-      * 
+      * It may be helpful to download the `metadata_final.csv` from my branch because my pipeline is designed to pickup where it left off... Hopefully this works so you can save time making the data.
 3. **Check the Data:**
    The last cell creates visuals.
 
@@ -35,5 +35,6 @@ It produces two distinct outputs:
 * Source: NASA Exoplanet Archive (MAST) via `lightkurve`.
 * Resolution: Default is set to download Quarter 1 only for speed (`USE_SINGLE_QUARTER = True` in script). Toggle to `False` to download full 4-year missions (warning: takes hours).
 * Parallelism: Uses `ThreadPoolExecutor` with 4 workers.
+
 
 
