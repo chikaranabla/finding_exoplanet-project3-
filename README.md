@@ -16,5 +16,7 @@ Also decreased BLS grid values just to make it faster during debugging, feel fre
 * I think the original value is
 * durations = np.linspace(0.05, 0.5, 10)
 * period_grid = np.linspace(1, 400, 5000)
+
+
 Added a .py version so you can run it from terminal   
 
