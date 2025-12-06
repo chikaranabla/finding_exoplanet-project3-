@@ -1,15 +1,20 @@
-# Exoplanet Detection Using Deep Learning
-Authors: Iori Adachi, Isabella Deutsch, Levi Galvan, Chikara Oe, Zack Schuder, Linus Upson
+# Modified Data Cleaning Pipeline
+Original authors: Zack and Isabella 
+Modification by Iori
 
+## Overview (Copied from Combined_Data_Cleaning branch)
+This pipeline downloads Kepler light curves, removes noise (outliers/stellar variability), and formats them for our models.
 
-Proposed steps for project:
-Using lightkurve python package, get light curves.
-1. Get list of stars, some with confirmed exoplanets, some without. For the stars with confirmed exoplanets, also get orbital periods. [Possible Dataset](https://www.kaggle.com/datasets/vijayveersingh/kepler-and-tess-exoplanet-data/data?select=keplerstellar_2025.02.03_04.41.47.csv)
-2. For each of those stars, use lightkurve to get the lightcurves. [Tutorial](https://lightkurve.github.io/lightkurve/tutorials/1-getting-started/searching-for-data-products.html#2.-Searching-for-Light-Curves)
-3. Feed lightcurves into models of our choice
-  - Bayesian Model
-    - From lecture on detecting periodic signals
-  - ML Model
-    - Idk what architecture works best, this is something we should choose
+It produces two distinct outputs:
+1. For ML Team (Chikara, Iori, Levi): A normalized, fixed-length tensor of light curves suitable for CNN input.
+1. For Bayesian Team (Linus): A metadata key containing Kepler IDs (KIC) and true orbital periods to facilitate physics-based signal detection.
 
-[google docs](https://docs.google.com/document/d/1bsr_a2apC2yBuetPcACo5ehVRY4nG8DJhY4eoFYQ_L8)
+## Modifications
+The ouput for the ML process now produces two files X_Global (2001 points) and X_Local (201 points) based on the paper by Shallue and Vanderburg.
+I added a helper function that generates the local view.
+Also decreased BLS grid values just to make it faster during debugging, feel free to change it back. 
+* I think the original value is
+* durations = np.linspace(0.05, 0.5, 10)
+* period_grid = np.linspace(1, 400, 5000)
+Added a .py version so you can run it from terminal
+
