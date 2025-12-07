@@ -19,9 +19,9 @@ y_path = "pipeline_output_v2/metadata_final.csv"
 df = pd.read_csv(y_path)
 y = df['label'].values.astype(np.float32) #(740,)
 
-===============
+#===============
 #dataset class
-===============
+#===============
 class LightCurveDataset(Dataset):
     def __init__(self, global_path, local_path, y):
         self.global_x = np.load(global_path)
@@ -37,12 +37,15 @@ class LightCurveDataset(Dataset):
         return len(self.global_x)
     
     def __getitem__(self, idx):
-        return self.global_x[idx], self.local_x[idx], self.y[idx]
+        return (
+            torch.from_numpy(self.global_x[idx]).float(), 
+            torch.from_numpy(self.local_x[idx]), 
+            torch.tensor(self.y[idx]).float(), dtype=torch.float32)
     
 
-===============
+#===============
 #CNN model
-===============
+#===============
 #CNN model:two disjoinit conv colomns(local and global), after that single MLP layer
 class CNN(nn.Module):
     def __init__(self):
@@ -149,12 +152,12 @@ class CNN(nn.Module):
         x = self.relu(self.fc2(x))
         x = self.relu(self.fc3(x))
         x = self.relu(self.fc4(x))
-        x = self.sigmoid(self.fc5(x))
+        x = self.fc5(x)
         return x
     
-===============
+        #===============
 #training hyperparameters
-===============
+#===============
 #training_hyperparameters
 learning_rate = 0.001
 num_epochs = 100
@@ -162,9 +165,9 @@ batch_size = 64
 train_size = 0.8
 val_size = 0.1
 
-===============
+#===============
 #split data into train, validation, and test
-===============
+#===============
 #split data into train, validation, and test
 dataset = LightCurveDataset(global_path = global_path, local_path = local_path, y = y)
 n = len(dataset)
@@ -175,15 +178,15 @@ num_test = n - num_train - num_val
 train_dataset, val_dataset, test_dataset = random_split(dataset, [num_train, num_val, num_test])
 
 train_loader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
-val_loader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
+val_loader = DataLoader(val_dataset, batch_size = batch_size, shuffle = False)
 test_loader = DataLoader(test_dataset, batch_size = batch_size, shuffle = False)
 
-===============
+#===============
 #training setup
-===============
+#===============
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = CNN().to(device)
-criterion = nn.BCELoss()
+criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model.parameters(), lr = learning_rate)
 
 
@@ -192,11 +195,13 @@ train_accs = []
 val_losses = []
 val_accs = []
 
-===============
+#===============
 #training loop
-===============
+#===============
 for epoch in range(num_epochs):
     model.train()
+    train_loss = 0
+    train_acc = 0
     for global_x, local_x, y in train_loader:
 
         global_x, local_x, y = global_x.to(device), local_x.to(device), y.to(device)
@@ -210,7 +215,7 @@ for epoch in range(num_epochs):
             
             
         train_loss += loss.item() * y.size(0)
-        train_acc += (pred.round() == y).float().sum().item()
+        train_acc += (pred.view(-1).round() == y).float().sum().item()
         
     train_loss /= len(train_loader.dataset)
     train_acc /= len(train_loader.dataset)
@@ -232,7 +237,7 @@ for epoch in range(num_epochs):
             loss = criterion(pred.view(-1), y)
             
             val_loss += loss.item() * y.size(0)
-            val_acc += (pred.round() == y).float().sum().item()
+            val_acc += (pred.view(-1).round() == y).float().sum().item()
             
     val_loss /= len(val_loader.dataset)
     val_acc /= len(val_loader.dataset)
@@ -244,9 +249,9 @@ for epoch in range(num_epochs):
     #print progress
     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Accuracy: {train_acc:.4f}, Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
     
-===============
+#===============
 #plot results
-===============
+#===============
 epochs = range(1, num_epochs+1)
 plt.figure(figsize=(12, 5))
 
@@ -271,24 +276,54 @@ plt.show()
     
     
     
-===============
-#test
-===============
+    
+#===============
+#evaluation function
+#===============
+def evaluate(preds, y_list):
+    preds =torch.cat(preds)
+    y_list = torch.cat(y_list)
+    TP = ((preds == 1) & (y_list == 1)).float().sum().item()
+    FP = ((preds == 1) & (y_list == 0)).float().sum().item()
+    TN = ((preds == 0) & (y_list == 0)).float().sum().item()
+    FN = ((preds == 0) & (y_list == 1)).float().sum().item()
+    
+    accuracy = (TP + TN) / (TP + TN + FP + FN + 1e-8)
+    precision = TP / (TP + FP + 1e-8)
+    recall = TP / (TP + FN + 1e-8)
+    F1 = 2 * precision * recall / (precision + recall + 1e-8)
+    
+    return accuracy, precision, recall, F1
+
+#===============
+#test loop
+#===============
+test_loss = 0
+test_acc = 0
+preds = []
+y_list = []
 model.eval()
 with torch.no_grad():
-    for local_x, global_x, y in test_loader:
-        local_x, global_x, y = local_x.to(device), global_x.to(device), y.to(device)
+    for global_x, local_x, y in test_loader:
+        global_x, local_x, y = global_x.to(device), local_x.to(device), y.to(device)
         
         pred = model(global_x, local_x)
-        loss = criterion(pred, y)
+        loss = criterion(pred.view(-1), y)
+        
+        preds.append(pred.view(-1).round().detach().cpu())
+        y_list.append(y.detach().cpu())
         
         test_loss += loss.item() * y.size(0)
-        test_acc += (pred.round() == y).float().sum().item()
+        test_acc += (pred.view(-1).round() == y).float().sum().item()
         
     test_loss /= len(test_loader.dataset)
     test_acc /= len(test_loader.dataset)
     
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
+    
+#evaluate the model
+accuracy, precision, recall, F1 = evaluate(preds, y_list)
+print(f"Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {F1:.4f}")
     
 if __name__ == "__main__":
     main()
