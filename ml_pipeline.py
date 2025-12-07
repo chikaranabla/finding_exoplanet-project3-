@@ -1,34 +1,55 @@
-#just a rough code architecture using pytorch
+#@author: Chikara Ota
+#to-do: try drop out
 
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, random_split
 
-#light curve data need to change to adjust local and global data
+#path to the data
+global_path = "pipeline_output_v2/X_Global.npy"
+local_path = "pipeline_output_v2/X_Local.npy"
+y_path = "pipeline_output_v2/metadata_final.csv"
+
+#get y from metadata_final.csv(label)
+df = pd.read_csv(y_path)
+y = df['label'].values.astype(np.float32) #(740,)
+
+===============
+#dataset class
+===============
 class LightCurveDataset(Dataset):
-    def __init__(self, x_path, y_path):
-        self.x = np.load(x_path)
-        self.y = np.load(y_path)
-        self.x = self.x.reshape(-1, 1, self.x.shape[1]).astype(np.float32)
-        self.y = self.y.astype(np.float32)
+    def __init__(self, global_path, local_path, y):
+        self.global_x = np.load(global_path)
+        self.local_x = np.load(local_path)
+        self.local_x = self.local_x.reshape(-1, 1, self.local_x.shape[1]).astype(np.float32)
+        self.global_x = self.global_x.reshape(-1, 1, self.global_x.shape[1]).astype(np.float32)
+        self.y = y.astype(np.float32)
+        
+        #check if the size of data is same
+        assert len(self.global_x) == len(self.local_x) == len(self.y), "The size of data is not same"
         
     def __len__(self):
-        return len(self.x)
+        return len(self.global_x)
     
     def __getitem__(self, idx):
-        return self.x[idx], self.y[idx]
+        return self.global_x[idx], self.local_x[idx], self.y[idx]
+    
 
-
+===============
+#CNN model
+===============
 #CNN model:two disjoinit conv colomns(local and global), after that single MLP layer
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
         
        
-       #for local cnn column(input is (1, 201)?)
+       #for local cnn column(input is (1, 201))
         self.local_conv1 = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=16, kernel_size=5),
             nn.ReLU(),
@@ -48,7 +69,7 @@ class CNN(nn.Module):
         #output_shape: (32, 40)
         
         
-        #for global cnn column(input is (1, 2001)?)
+        #for global cnn column(input is (1, 2001))
         self.global_conv1 = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=16, kernel_size=5),
             nn.ReLU(),
@@ -97,18 +118,14 @@ class CNN(nn.Module):
         
         #for mlp layer
         self.fc1 = nn.Linear(in_features=32*40 + 256*51, out_features=512)
-       
         self.fc2 = nn.Linear(in_features=512, out_features=512)
-        
         self.fc3 = nn.Linear(in_features=512, out_features=512)
-        
         self.fc4 = nn.Linear(in_features=512, out_features=512)
-        
         self.fc5 = nn.Linear(in_features=512, out_features=1)
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
        
-    def forward(self, local_x, global_x):
+    def forward(self, global_x, local_x):
         
         #local cnn column
         local_x = self.local_conv1(local_x)
@@ -135,16 +152,21 @@ class CNN(nn.Module):
         x = self.sigmoid(self.fc5(x))
         return x
     
-    
+===============
+#training hyperparameters
+===============
 #training_hyperparameters
 learning_rate = 0.001
 num_epochs = 100
-batch_size = 128
+batch_size = 64
 train_size = 0.8
 val_size = 0.1
-    
-#load data need to change to adjust local and global data
-dataset = LightCurveDataset(x_path = "local_x_data.npy", y_path = "local_y_data.npy")
+
+===============
+#split data into train, validation, and test
+===============
+#split data into train, validation, and test
+dataset = LightCurveDataset(global_path = global_path, local_path = local_path, y = y)
 n = len(dataset)
 num_train = int(n * train_size)
 num_val = int(n * val_size)
@@ -156,8 +178,9 @@ train_loader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True
 val_loader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
 test_loader = DataLoader(test_dataset, batch_size = batch_size, shuffle = False)
 
-
+===============
 #training setup
+===============
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = CNN().to(device)
 criterion = nn.BCELoss()
@@ -169,19 +192,23 @@ train_accs = []
 val_losses = []
 val_accs = []
 
-
+===============
 #training loop
+===============
 for epoch in range(num_epochs):
     model.train()
-    for x, y in train_loader:
-        x, y = x.to(device), y.to(device)
-        pred = model(local_x, global_x)  #how to input local and global data? maybe neet to change
-        loss = criterion(pred, y)
+    for global_x, local_x, y in train_loader:
+
+        global_x, local_x, y = global_x.to(device), local_x.to(device), y.to(device)
+        pred = model(global_x, local_x) 
+        loss = criterion(pred.view(-1), y)
         
+        #backward and update
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        
+            
+            
         train_loss += loss.item() * y.size(0)
         train_acc += (pred.round() == y).float().sum().item()
         
@@ -198,11 +225,11 @@ for epoch in range(num_epochs):
     val_loss = 0
     val_acc = 0
     with torch.no_grad():
-        for local_x, global_x, y in val_loader:
-            local_x, global_x, y = local_x.to(device), global_x.to(device), y.to(device)
+        for global_x, local_x, y in val_loader:
+            global_x, local_x, y = global_x.to(device), local_x.to(device), y.to(device)
             
-            pred = model(local_x, global_x)
-            loss = criterion(pred, y)
+            pred = model(global_x, local_x)
+            loss = criterion(pred.view(-1), y)
             
             val_loss += loss.item() * y.size(0)
             val_acc += (pred.round() == y).float().sum().item()
@@ -217,8 +244,9 @@ for epoch in range(num_epochs):
     #print progress
     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Accuracy: {train_acc:.4f}, Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
     
-    
+===============
 #plot results
+===============
 epochs = range(1, num_epochs+1)
 plt.figure(figsize=(12, 5))
 
@@ -243,13 +271,15 @@ plt.show()
     
     
     
+===============
 #test
+===============
 model.eval()
 with torch.no_grad():
     for local_x, global_x, y in test_loader:
         local_x, global_x, y = local_x.to(device), global_x.to(device), y.to(device)
         
-        pred = model(local_x, global_x)
+        pred = model(global_x, local_x)
         loss = criterion(pred, y)
         
         test_loss += loss.item() * y.size(0)
@@ -259,6 +289,9 @@ with torch.no_grad():
     test_acc /= len(test_loader.dataset)
     
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
+    
+if __name__ == "__main__":
+    main()
     
     
     

@@ -1,0 +1,6 @@
+clear_cache.ps1
+clear_cache.py
+*.csv
+*.pyz
+*.npy
+*.npz
