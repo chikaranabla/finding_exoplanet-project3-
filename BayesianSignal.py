@@ -4,9 +4,9 @@ import time
 import math
 from scipy.integrate import simpson
 from scipy.signal import find_peaks
-from scipy.special import loggamma
+from scipy.special import loggamma, erfc
 
-def phase_fold(t, signal, omega, phi, num_bins):
+def phase_fold(t, signal, omega, phi, num_bins, reduction='sum'):
     phase = ((t * omega + phi) / (2 * np.pi)) % 1
     timestamp_bins = np.floor(phase * num_bins).astype(int)
 
@@ -21,76 +21,10 @@ def phase_fold(t, signal, omega, phi, num_bins):
 
     bin_phases = np.linspace(0, 1, num_bins)
 
+    if reduction == 'average':
+        bin_signal = bin_signal / timestamps_per_bin
+
     return bin_signal, bin_phases
-
-
-def Omega_Prior(Omega):
-    w_start = 1
-    w_end = 20
-    return 1/(np.log(w_end/w_start)/Omega)
-
-def M_prior(M):
-    return loggamma(M+1)
-
-def CalculateProbs(Omega, Phi, M, t, signal, time_total, dt):
-    P = np.zeros((len(Omega), len(Phi), len(M)))
-    N = np.sum(signal)
-
-    Pr_omega = Omega_Prior(Omega)
-    Pr_M = M_prior(M)
-
-    for i, w in enumerate(Omega):
-        for j, phi in enumerate(Phi):
-            for k, m in enumerate(M):
-                fold_summed_signal, bin_phases = phase_fold(t, signal, omega=w, phi=phi, num_bins=m)
-                n = fold_summed_signal
-                r = n*m/time_total
-                # n_fake = r * time_total/m
-                A = np.mean(r)
-                Am = A*m
-                f = r/(Am)
-                f = np.clip(f, 1e-12, 1)
-                # if Am < 0:
-                #     print(Am, "Am is negative")
-                logP_D = N*(np.log(dt) + np.log(Am)) +\
-                        np.dot(n, np.log(f)) - A*time_total +\
-                        np.log(Pr_M[k]) + np.log(Pr_omega[i])
-                P[i,j,k] = logP_D
-                
-    return P
-
-def Null_Likelihood(t, signal, time_total, dt):
-    N = np.sum(signal)
-    A  = np.mean(signal)/dt #* m reduces to the number of timesteps for unbinned, so m/time_total = 1/dt
-    log_P_D = N * (np.log(dt) + np.log(A)) - A*time_total
-    return log_P_D
-
-def Omega_Curve(t, signal, omega_min, omega_max, omega_steps, phi_steps=20, m_min=5, m_max=20, return_likelihood_ratio=False):
-    Omega = np.linspace(omega_min, omega_max, omega_steps)
-    Phi = np.linspace(0, 2*np.pi, phi_steps)
-    M = np.arange(m_min, m_max+1)
-    
-    time_total = t.max() - t.min()
-    dt = np.mean(np.diff(t)) #! Only work for uniform or uniform-ish timesteps
-
-    P = CalculateProbs(Omega, Phi, M, t, signal, time_total, dt)
-
-    Y     = np.linspace(0, 2*np.pi, len(Phi))
-    Z     = np.linspace(M.min()  , M.max(), len(M))
-
-    margM = simpson(P, x = Z)#marginalization over bins
-    Pw    = simpson(margM, x = Y, axis = 1)#best omega marginalization over bins phase
-
-    if return_likelihood_ratio:
-        log_P_D_unperiodic = Null_Likelihood(t, signal, time_total, dt)
-        log_P_D_periodic = simpson(Pw, x=Omega)
-        print(log_P_D_periodic, log_P_D_unperiodic)
-        likelihood_ratio = log_P_D_periodic - log_P_D_unperiodic
-
-        return Omega, Pw, likelihood_ratio
-
-    return Omega, Pw
-
 
 def make_dummy_signal(time_total, n_timesteps, omega=None, period=None, noise_ratio=0.1, signal_type="sin"):
 
@@ -108,5 +42,198 @@ def make_dummy_signal(time_total, n_timesteps, omega=None, period=None, noise_ra
         signal = 0.5+ 0.5*np.sign(np.sin(omega * t)+0.6)
     return t, np.clip(signal + np.random.normal(0, noise_ratio, n_timesteps), 0, 1)
 
+
 def best_omega(Omega, Pw):
     return Omega[Pw.argmax()]
+
+
+def bin_times(times, omega, phi, m):
+    return np.floor(m * ((times * omega + phi) % (2 * np.pi)) / (2 * np.pi)).astype(int)
+
+#* m is always num_bins
+
+def bin_sum(values, bins, m):
+    return np.bincount(bins, weights=values, minlength=m)
+
+# Using algorithm from https://iopscience.iop.org/article/10.1086/307433/pdf
+def calculate_logprob(t, signal, uncerts, Omega, Phi, M, r_min, r_max):
+    """Calculates the log prob P(D | w, b=1, phi, M_m, I) on a grid specified by Omega, Phi, M
+
+    Args:
+        t (np.array): The times the signal is sampled at
+        signal (np.array): The signal (as a flux) observed at times t
+        uncerts (np.array): Uncertainties on the signal observations at times t
+        Omega (np.array): The omega values to evaluate the log prob at
+        Phi (np.array): The phi values to evaluate the log prob at
+        M (np.array): The m values (number of bins) to evaluate the log prob at
+        r_min (float): The minumum possible 'true flux' value (used for priors on the flux)
+        r_max (float): The maximum possible 'true flux' value (used for priors on the flux)
+
+    Raises:
+        ValueError: If any bins end up with 0 examples in them
+
+    Returns:
+        np.array(shape=(len(Omega), len(Phi), len(M))): The log prob sampled on the specified Omega, Phi, M grid
+    """
+    delta_r = r_max - r_min
+    N = len(t)
+
+    log_P_D = np.zeros((len(Omega), len(Phi), len(M)))
+    for i, w in enumerate(Omega):
+        for j, p in enumerate(Phi):
+            for k, m in enumerate(M):
+
+                bins = bin_times(t, w, p, m)
+                
+                W_j = bin_sum(1/np.square(uncerts), bins, m)
+
+                if np.any(W_j == 0):
+                    raise ValueError(f"Zero W_j encountered: omega={w}, phi={p}, m={m}")
+                
+                d_Wj = bin_sum(signal/np.square(uncerts), bins, m)/W_j
+
+                d_Wj2 = bin_sum(np.square(signal/uncerts), bins, m)/W_j
+
+                chisq_Wj = W_j * (d_Wj2 - np.square(d_Wj))
+
+                y_jmin = np.sqrt(0.5 * W_j) * (r_min - d_Wj)
+                y_jmax = np.sqrt(0.5 * W_j) * (r_max - d_Wj)
+
+                erfc_terms = 1/np.sqrt(W_j) * (erfc(y_jmin) - erfc(y_jmax))
+
+                log_P_D[i, j, k] = (-0.5*N*np.log(2*np.pi)) + (-m * np.log(delta_r)) - np.sum(np.log(uncerts)) +\
+                (0.5 * m * np.log(np.pi/2)) - np.sum(chisq_Wj/2) + np.sum(np.log(erfc_terms))
+                
+    return log_P_D # This is ln(P(D|w, b=1, phi, M_m, I)) as defined in eqn 24
+
+def log_P_constant(t, signal, uncerts, A_min, A_max):
+    """Calculate the log_prob P(D | b=1, I) for a constant signal model (equivalent to m=1 case)
+
+    Args:
+        t (np.array): The times the signal is sampled at
+        signal (np.array): The signal (as a flux) observed at times t
+        uncerts (np.array): The uncertainties on the signal observations at times t
+        A_min (float): The minimum possible 'true flux' value
+        A_max (float): The maximum possible 'true flux' value
+
+    Returns:
+        float: The log prob ln(P(D | b=1, I))
+    """
+    # Replace all b*W_j with W_j and s_i*b^-1/2 with s_i, with the exception that d_Wj and d_Wj2 remain unchanged
+    N = len(t)
+    delta_A = A_max - A_min
+
+    W = np.sum(1/np.square(uncerts))
+
+    d_W = np.sum(signal/np.square(uncerts))/W
+
+    d_W2 = np.sum(np.square(signal/uncerts))/W
+
+    chisq_W = W * (d_W2 - np.square(d_W))
+
+    y_Amin = np.sqrt(0.5 * W) * (A_min - d_W)
+    y_Amax = np.sqrt(0.5 * W) * (A_max - d_W)
+
+    erfc_term = 1/np.sqrt(W) * (erfc(y_Amin) - erfc(y_Amax))
+
+    log_P_D = (-0.5 * N * np.log(2*np.pi)) - np.log(delta_A) - np.sum(np.log(uncerts)) +\
+    (0.5 * np.log(np.pi/2)) - (chisq_W/2) + np.log(erfc_term)
+
+    return log_P_D
+
+
+def marginalize_Phi_M(log_P_D, Omega, Phi, M, omega_min, omega_max):
+    #* Marginalize the given log prob over phi and M, adding in the priors on omega and phi.
+    #* Leaves the omega dimension intact for use in frequency detection
+    log_omega_prior = np.log(1 / (Omega * np.log(omega_max/omega_min)))
+    log_phi_prior = np.log(1 / (2 * np.pi))
+
+    log_P = log_P_D + log_omega_prior[:, np.newaxis, np.newaxis] + log_phi_prior
+
+    #* Integrate over Phi and M to get P(D|w, b=1, I)
+    log_offset_factor = np.max(log_P)
+    P = np.exp(log_P - log_offset_factor)  # Subtract max for numerical stability
+
+    P_over_M = simpson(P, x=M, axis=-1)  # Integrate over M
+    P_over_Phi_M = simpson(P_over_M, x=Phi, axis=-1)  # Integrate over Phi
+
+    return P_over_Phi_M, log_offset_factor #+ np.max(log_P_D)  # Reapply max factor
+    
+def log_odds_ratio(log_P_D_periodic, log_P_D_nonperiodic, Omega, Phi, M, omega_min, omega_max):
+    
+    P_over_Phi_M, log_offset_factor = marginalize_Phi_M(log_P_D_periodic, Omega, Phi, M, omega_min, omega_max)
+
+    P_periodic = simpson(P_over_Phi_M, x=Omega)
+
+    return np.log(P_periodic) -  (log_P_D_nonperiodic -log_offset_factor)
+
+# ---------------------------------------------
+# Outdated functions kept for reference
+
+# def Omega_Prior(Omega):
+#     w_start = 1
+#     w_end = 20 #! Change if omega range changes
+#     return 1/(np.log(w_end/w_start)/Omega)
+
+# def M_prior(M):
+#     return loggamma(M+1)
+
+# def CalculateProbs(Omega, Phi, M, t, signal, time_total, dt):
+#     P = np.zeros((len(Omega), len(Phi), len(M)))
+#     N = np.sum(signal)
+
+#     Pr_omega = Omega_Prior(Omega)
+#     Pr_M = M_prior(M)
+
+#     for i, w in enumerate(Omega):
+#         for j, phi in enumerate(Phi):
+#             for k, m in enumerate(M):
+#                 fold_summed_signal, bin_phases = phase_fold(t, signal, omega=w, phi=phi, num_bins=m)
+#                 n = fold_summed_signal
+#                 r = n*m/time_total
+#                 # n_fake = r * time_total/m
+#                 A = np.mean(r)
+#                 Am = A*m
+#                 f = r/(Am)
+#                 f = np.clip(f, 1e-12, 1)
+#                 # if Am < 0:
+#                 #     print(Am, "Am is negative")
+#                 logP_D = N*(np.log(dt) + np.log(Am)) +\
+#                         np.dot(n, np.log(f)) - A*time_total +\
+#                         np.log(Pr_M[k]) + np.log(Pr_omega[i])
+#                 P[i,j,k] = logP_D
+                
+#     return P
+
+# def Null_Likelihood(t, signal, time_total, dt):
+#     N = np.sum(signal)
+#     A  = np.mean(signal)/dt #* m reduces to the number of timesteps for unbinned, so m/time_total = 1/dt
+#     log_P_D = N * (np.log(dt) + np.log(A)) - A*time_total
+#     return log_P_D
+
+# def Omega_Curve(t, signal, omega_min, omega_max, omega_steps, phi_steps=20, m_min=5, m_max=20, return_likelihood_ratio=False):
+#     Omega = np.linspace(omega_min, omega_max, omega_steps)
+#     Phi = np.linspace(0, 2*np.pi, phi_steps)
+#     M = np.arange(m_min, m_max+1)
+    
+#     time_total = t.max() - t.min()
+#     dt = np.mean(np.diff(t)) #! Only work for uniform or uniform-ish timesteps
+
+#     P = CalculateProbs(Omega, Phi, M, t, signal, time_total, dt)
+
+#     Y     = np.linspace(0, 2*np.pi, len(Phi))
+#     Z     = np.linspace(M.min()  , M.max(), len(M))
+
+#     margM = simpson(P, x = Z)#marginalization over bins
+#     Pw    = simpson(margM, x = Y, axis = 1)#best omega marginalization over bins phase
+
+#     if return_likelihood_ratio:
+#         log_P_D_unperiodic = Null_Likelihood(t, signal, time_total, dt)
+#         log_P_D_periodic = simpson(Pw, x=Omega)
+#         print(log_P_D_periodic, log_P_D_unperiodic)
+#         likelihood_ratio = log_P_D_periodic - log_P_D_unperiodic
+
+#         return Omega, Pw, likelihood_ratio
+
+#     return Omega, Pw
+
