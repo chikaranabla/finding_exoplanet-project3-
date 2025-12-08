@@ -21,8 +21,12 @@ def phase_fold(t, signal, omega, phi, num_bins, reduction='sum'):
 
     bin_phases = np.linspace(0, 1, num_bins)
 
-    if reduction == 'average':
+    if reduction == 'mean':
         bin_signal = bin_signal / timestamps_per_bin
+    elif reduction == 'sum':
+        pass
+    else:
+        raise ValueError("reduction must be either 'sum' or 'mean'")
 
     return bin_signal, bin_phases
 
@@ -160,7 +164,7 @@ def marginalize_Phi_M(log_P_D, Omega, Phi, M, omega_min, omega_max):
     return P_over_Phi_M, log_offset_factor #+ np.max(log_P_D)  # Reapply max factor
     
 def log_odds_ratio(log_P_D_periodic, log_P_D_nonperiodic, Omega, Phi, M, omega_min, omega_max):
-    
+
     P_over_Phi_M, log_offset_factor = marginalize_Phi_M(log_P_D_periodic, Omega, Phi, M, omega_min, omega_max)
 
     P_periodic = simpson(P_over_Phi_M, x=Omega)
