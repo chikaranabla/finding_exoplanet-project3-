@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 
 # --- CONFIGURATION ---
 KOI_FILE = "q1_q8_koi_2025.02.03_04.12.15.csv" # Ensure this file is in the folder
-OUTPUT_DIR = "pipeline_output_v2"
+OUTPUT_DIR = "pipeline_output_v3"
 BATCH_SIZE = 50          # Save to disk every 50 stars (Prevents RAM crashes)
 CNN_INPUT_LEN = 2001     # Size of array for CNN input
 WORKERS = 4              # Keep low (4-8) to prevent API timeouts
@@ -300,9 +300,9 @@ def run_pipeline():
 
     # Use SAFE SAMPLE here to prevent crashes
     print("Selecting samples...")
-    positives = safe_sample(confirmed_df, 300) #might have to change to ~1000
-    negatives = safe_sample(noise_df, 300) #might change to ~800 (same for next line)
-    synthetic_hosts = safe_sample(noise_df, 300, random_state=99) # Different random state
+    positives = safe_sample(confirmed_df, 800) #might have to change to ~1000
+    negatives = safe_sample(noise_df, 800) #might change to ~800 (same for next line)
+    synthetic_hosts = safe_sample(noise_df, 800, random_state=99) # Different random state
     
     tasks = []
     for _, row in positives.iterrows(): tasks.append({'row': row, 'inject': False})

@@ -40,7 +40,8 @@ class LightCurveDataset(Dataset):
         return (
             torch.from_numpy(self.global_x[idx]).float(), 
             torch.from_numpy(self.local_x[idx]), 
-            torch.tensor(self.y[idx]).float(), dtype=torch.float32)
+            torch.tensor(self.y[idx], dtype=torch.float32)
+            )
     
 
 #===============
@@ -206,6 +207,7 @@ for epoch in range(num_epochs):
 
         global_x, local_x, y = global_x.to(device), local_x.to(device), y.to(device)
         pred = model(global_x, local_x) 
+        prob = torch.sigmoid(pred).view(-1)
         loss = criterion(pred.view(-1), y)
         
         #backward and update
@@ -213,9 +215,9 @@ for epoch in range(num_epochs):
         loss.backward()
         optimizer.step()
             
-            
+        pred_label = (prob > 0.5).float()    
         train_loss += loss.item() * y.size(0)
-        train_acc += (pred.view(-1).round() == y).float().sum().item()
+        train_acc += (pred_label == y).float().sum().item()
         
     train_loss /= len(train_loader.dataset)
     train_acc /= len(train_loader.dataset)
@@ -234,10 +236,12 @@ for epoch in range(num_epochs):
             global_x, local_x, y = global_x.to(device), local_x.to(device), y.to(device)
             
             pred = model(global_x, local_x)
+            prob = torch.sigmoid(pred).view(-1)
             loss = criterion(pred.view(-1), y)
             
+            pred_label = (prob > 0.5).float()    
             val_loss += loss.item() * y.size(0)
-            val_acc += (pred.view(-1).round() == y).float().sum().item()
+            val_acc += (pred_label == y).float().sum().item()
             
     val_loss /= len(val_loader.dataset)
     val_acc /= len(val_loader.dataset)
@@ -280,13 +284,13 @@ plt.show()
 #===============
 #evaluation function
 #===============
-def evaluate(preds, y_list):
-    preds =torch.cat(preds)
+def evaluate(pred_labels, y_list):
+    pred_labels =torch.cat(pred_labels)
     y_list = torch.cat(y_list)
-    TP = ((preds == 1) & (y_list == 1)).float().sum().item()
-    FP = ((preds == 1) & (y_list == 0)).float().sum().item()
-    TN = ((preds == 0) & (y_list == 0)).float().sum().item()
-    FN = ((preds == 0) & (y_list == 1)).float().sum().item()
+    TP = ((pred_labels == 1) & (y_list == 1)).float().sum().item()
+    FP = ((pred_labels == 1) & (y_list == 0)).float().sum().item()
+    TN = ((pred_labels == 0) & (y_list == 0)).float().sum().item()
+    FN = ((pred_labels == 0) & (y_list == 1)).float().sum().item()
     
     accuracy = (TP + TN) / (TP + TN + FP + FN + 1e-8)
     precision = TP / (TP + FP + 1e-8)
@@ -300,21 +304,24 @@ def evaluate(preds, y_list):
 #===============
 test_loss = 0
 test_acc = 0
-preds = []
 y_list = []
+pred_labels = []
 model.eval()
 with torch.no_grad():
     for global_x, local_x, y in test_loader:
         global_x, local_x, y = global_x.to(device), local_x.to(device), y.to(device)
         
         pred = model(global_x, local_x)
+        prob = torch.sigmoid(pred).view(-1)
+        pred_label = (prob > 0.5).float()   
+         
         loss = criterion(pred.view(-1), y)
-        
-        preds.append(pred.view(-1).round().detach().cpu())
+
+        pred_labels.append(pred_label.detach().cpu())
         y_list.append(y.detach().cpu())
         
         test_loss += loss.item() * y.size(0)
-        test_acc += (pred.view(-1).round() == y).float().sum().item()
+        test_acc += (pred_label == y).float().sum().item()
         
     test_loss /= len(test_loader.dataset)
     test_acc /= len(test_loader.dataset)
@@ -322,11 +329,8 @@ with torch.no_grad():
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
     
 #evaluate the model
-accuracy, precision, recall, F1 = evaluate(preds, y_list)
+accuracy, precision, recall, F1 = evaluate(pred_labels, y_list)
 print(f"Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {F1:.4f}")
-    
-if __name__ == "__main__":
-    main()
     
     
     
