@@ -300,9 +300,9 @@ def run_pipeline():
 
     # Use SAFE SAMPLE here to prevent crashes
     print("Selecting samples...")
-    positives = safe_sample(confirmed_df, 800) #might have to change to ~1000
-    negatives = safe_sample(noise_df, 800) #might change to ~800 (same for next line)
-    synthetic_hosts = safe_sample(noise_df, 800, random_state=99) # Different random state
+    positives = safe_sample(confirmed_df, 1000) #might have to change to ~1000
+    negatives = safe_sample(noise_df, 1000) #might change to ~800 (same for next line)
+    synthetic_hosts = safe_sample(noise_df, 1000, random_state=99) # Different random state
     
     tasks = []
     for _, row in positives.iterrows(): tasks.append({'row': row, 'inject': False})
