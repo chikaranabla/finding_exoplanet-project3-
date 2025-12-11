@@ -1,6 +1,3 @@
-DATA_DIR = "pipeline_output_final"
-META_FILE = f"{DATA_DIR}/final_metadata.csv"
-    
 import os
 import numpy as np
 import pandas as pd
@@ -15,6 +12,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 global_path = "pipeline_output_v2/X_Global.npy"
 local_path = "pipeline_output_v2/X_Local.npy"
 y_path = "pipeline_output_v2/metadata_final.csv"
+meta_path = "project3/metadata_final.csv"
 
 #get y from metadata_final.csv(label)
 df = pd.read_csv(y_path)
@@ -184,7 +182,7 @@ class CNN(nn.Module):
         x = self.fc5(x)
         return x
     
-        #===============
+#===============
 #training hyperparameters
 #===============
 #training_hyperparameters
