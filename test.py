@@ -23,7 +23,12 @@ y = df['label'].values.astype(np.float32) #(740,)
 #===============
 
 class ExoplanetData(Dataset):
-    def __init__(self, meta_path):
+    def __init__(self, meta_path, data_dir="pipeline_output_final"):
+        """
+        Args:
+            meta_path: Path to the metadata CSV file (e.g., final_metadata.csv)
+            data_dir: Directory containing the .npz batch files
+        """
         self.data_dir = data_dir
         self.meta = pd.read_csv(meta_path)
         
@@ -31,13 +36,19 @@ class ExoplanetData(Dataset):
         return len(self.meta)
     
     def __getitem__(self, idx):
+        """
+        Returns:
+            global_x: Global view flux data (torch.Tensor, shape: (1, length))
+            local_x: Local view flux data (torch.Tensor, shape: (1, length))
+            label: Label (torch.Tensor, dtype: float32)
+        """
         row = self.meta.iloc[idx]
         file_path = os.path.join(self.data_dir, row['filename'])
         
         with np.load(file_path) as data:
-            indices = row['index_in_batch']
-            flux_local = data['flux_local'][indices].astype(np.float32).reshape(1, -1)
-            flux_global = data['flux_global'][indices].astype(np.float32).reshape(1, -1)
+            index = int(row['index_in_batch'])  # Convert to int for array indexing
+            flux_local = data['flux_local'][index].astype(np.float32).reshape(1, -1)
+            flux_global = data['flux_global'][index].astype(np.float32).reshape(1, -1)
             label = int(row['label'])
             
         return (
