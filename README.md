@@ -24,15 +24,25 @@ This script downloads the dataset from Kaggle and copies the KOI (Kepler Object 
 1. Run preprocessing: `Zack_data_cleaning_pipeline_v4.ipynb`
 2. Run ML pipeline: `ml_pipeline_for_V4_preprocessing.py`
 
+**Note on V4**: Data download is currently in progress and takes a long time. The download process may stop mid-way, requiring manual intervention to resume. Training with V4 data has not been completed yet. If you have time, please try running the V4 pipeline.
+
 #### V2 (Legacy)
 1. Run preprocessing: `preprocessing_V2.py`
 2. Run ML pipeline: `ml_pipeline_for_V2_preprocessing.ipynb`
+
+**Hyperparameters:**
+- Learning rate: 0.001
+- Batch size: 64
+- Epochs: 100
+- Optimizer: Adam
+- Train/Val/Test split: 0.8 / 0.1 / 0.1
+- Loss function: BCEWithLogitsLoss
 
 **Note on V2**: Training curves show good performance, but validation curves indicate overfitting (loss increases, accuracy decreases).
 
 <img src="image/result_of_V2.png" alt="V2 Training Results" width="600"/>
 
-*V2 preprocessing results showing overfitting: training loss/accuracy improve, but validation loss increases and accuracy decreases.*
+*V2 preprocessing results (batch size 64) showing overfitting: training loss/accuracy improve, but validation loss increases and accuracy decreases.*
 
 ### Model Architecture
 
