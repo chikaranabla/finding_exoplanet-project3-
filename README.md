@@ -22,9 +22,12 @@ This script downloads the dataset from Kaggle and copies the KOI (Kepler Object 
 
 #### V4 (Recommended - Latest)
 1. Run preprocessing: `Zack_data_cleaning_pipeline_v4.ipynb`
-2. Run ML pipeline: `ml_pipeline_for_V4_preprocessing.py`
+2. Run ML pipeline: `ml_pipeline_for_V4_preprocessing.ipynb`
 
-**Note on V4**: Data download is currently in progress and takes a long time. The download process may stop mid-way, requiring manual intervention to resume. Training with V4 data has not been completed yet. If you have time, please try running the V4 pipeline.
+**Note on V4**: 
+- Data download is currently in progress and takes a long time. The download process may stop mid-way, requiring manual intervention to resume.
+- After running `run_pipeline()` and `merge_metadata()`, the resulting metadata has all labels set to 1 (only confirmed planets, no false positives). 
+- Training with V4 data has not been completed yet. If you have time, please try running the V4 pipeline and investigate the label distribution issue.
 
 #### V2 (Legacy)
 1. Run preprocessing: `preprocessing_V2.py`
