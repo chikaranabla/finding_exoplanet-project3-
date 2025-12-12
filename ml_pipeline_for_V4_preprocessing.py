@@ -1,6 +1,4 @@
-#@author: Chikara Ota
-#to-do: try drop out
-
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,36 +9,45 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, random_split
 
 #path to the data
-global_path = "pipeline_output_v2/X_Global.npy"
-local_path = "pipeline_output_v2/X_Local.npy"
-y_path = "pipeline_output_v2/metadata_final.csv"
-
-#get y from metadata_final.csv(label)
-df = pd.read_csv(y_path)
-y = df['label'].values.astype(np.float32) #(740,)
+#assume this data dir pipeline_output_final/final_metadata.csv and pipeline_output_final/batch_*.npz are in data_dir
+data_dir = "pipeline_output_final"
 
 #===============
 #dataset class
 #===============
-class LightCurveDataset(Dataset):
-    def __init__(self, global_path, local_path, y):
-        self.global_x = np.load(global_path)
-        self.local_x = np.load(local_path)
-        self.local_x = self.local_x.reshape(-1, 1, self.local_x.shape[1]).astype(np.float32)
-        self.global_x = self.global_x.reshape(-1, 1, self.global_x.shape[1]).astype(np.float32)
-        self.y = y.astype(np.float32)
-        
-        #check if the size of data is same
-        assert len(self.global_x) == len(self.local_x) == len(self.y), "The size of data is not same"
+#this is class which is for V4 preprocessing data. You need to have final_metadata.csv and batch_*.npz in data_dir 
+class ExoplanetData(Dataset):
+    def __init__(self, data_dir):
+        """
+        Args:
+            data_dir: Directory containing the .npz batch files
+        """
+        self.data_dir = data_dir
+        self.meta = pd.read_csv(os.path.join(data_dir, "final_metadata.csv"))
         
     def __len__(self):
-        return len(self.global_x)
+        return len(self.meta)
     
     def __getitem__(self, idx):
+        """
+        Returns:
+            global_x: Global view flux data (torch.Tensor, shape: (1, length))
+            local_x: Local view flux data (torch.Tensor, shape: (1, length))
+            label: Label (torch.Tensor, dtype: float32)
+        """
+        row = self.meta.iloc[idx]
+        file_path = os.path.join(self.data_dir, row['filename'])
+        
+        with np.load(file_path) as data:
+            index = int(row['index_in_batch'])  # Convert to int for array indexing
+            flux_local = data['flux_local'][index].astype(np.float32).reshape(1, -1)
+            flux_global = data['flux_global'][index].astype(np.float32).reshape(1, -1)
+            label = int(row['label'])
+            
         return (
-            torch.from_numpy(self.global_x[idx]).float(), 
-            torch.from_numpy(self.local_x[idx]), 
-            torch.tensor(self.y[idx], dtype=torch.float32)
+            torch.from_numpy(flux_global).float(), 
+            torch.from_numpy(flux_local).float(), 
+            torch.tensor(label, dtype=torch.float32)
             )
     
 
@@ -63,13 +70,15 @@ class CNN(nn.Module):
         )
         #output_shape: (16, 94)
        
-        self.local_conv2 = nn.Sequential(
-            nn.Conv1d(in_channels=16, out_channels=32, kernel_size=5),
-            nn.ReLU(),
-            nn.Conv1d(in_channels=32, out_channels=32, kernel_size=5),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=7, stride=2)
-        )
+       
+       #don't use for small current model
+        #self.local_conv2 = nn.Sequential(
+        #    nn.Conv1d(in_channels=16, out_channels=32, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.Conv1d(in_channels=32, out_channels=32, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.MaxPool1d(kernel_size=7, stride=2)
+        #)
         #output_shape: (32, 40)
         
         
@@ -93,35 +102,38 @@ class CNN(nn.Module):
         )
         #output_shape: (32, 492)
         
-        self.global_conv3 = nn.Sequential(
-            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=5),
-            nn.ReLU(),
-            nn.Conv1d(in_channels=64, out_channels=64, kernel_size=5),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=5, stride=2)
-        )
+        #don't use for small current model
+        #self.global_conv3 = nn.Sequential(
+        #    nn.Conv1d(in_channels=32, out_channels=64, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.Conv1d(in_channels=64, out_channels=64, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.MaxPool1d(kernel_size=5, stride=2)
+        #)
         #output_shape: (64, 240)
         
-        self.global_conv4 = nn.Sequential(
-            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=5),
-            nn.ReLU(),
-            nn.Conv1d(in_channels=128, out_channels=128, kernel_size=5),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=5, stride=2)
-        )
+        #don't use for small current model
+        #self.global_conv4 = nn.Sequential(
+        #    nn.Conv1d(in_channels=64, out_channels=128, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.Conv1d(in_channels=128, out_channels=128, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.MaxPool1d(kernel_size=5, stride=2)
+        #)
         #output_shape: (128, 114)
         
-        self.global_conv5 = nn.Sequential(
-            nn.Conv1d(in_channels=128, out_channels=256, kernel_size=5),
-            nn.ReLU(),
-            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=5),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=5, stride=2)
-        )
+        #don't use for small current model
+        #self.global_conv5 = nn.Sequential(
+        #    nn.Conv1d(in_channels=128, out_channels=256, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.Conv1d(in_channels=256, out_channels=256, kernel_size=5),
+        #    nn.ReLU(),
+        #    nn.MaxPool1d(kernel_size=5, stride=2)
+        #)
         #output_shape: (256, 51)
         
         #for mlp layer
-        self.fc1 = nn.Linear(in_features=32*40 + 256*51, out_features=512)
+        self.fc1 = nn.Linear(in_features=16*94 + 32*492, out_features=512)
         self.fc2 = nn.Linear(in_features=512, out_features=512)
         self.fc3 = nn.Linear(in_features=512, out_features=512)
         self.fc4 = nn.Linear(in_features=512, out_features=512)
@@ -133,7 +145,6 @@ class CNN(nn.Module):
         
         #local cnn column
         local_x = self.local_conv1(local_x)
-        local_x = self.local_conv2(local_x)
         local_x = torch.flatten(local_x, 1)
         
         
@@ -141,9 +152,6 @@ class CNN(nn.Module):
         #global cnn column
         global_x = self.global_conv1(global_x)
         global_x = self.global_conv2(global_x)
-        global_x = self.global_conv3(global_x)
-        global_x = self.global_conv4(global_x)
-        global_x = self.global_conv5(global_x)
         global_x = torch.flatten(global_x, 1)
         
         
@@ -156,7 +164,7 @@ class CNN(nn.Module):
         x = self.fc5(x)
         return x
     
-        #===============
+#===============
 #training hyperparameters
 #===============
 #training_hyperparameters
@@ -170,7 +178,7 @@ val_size = 0.1
 #split data into train, validation, and test
 #===============
 #split data into train, validation, and test
-dataset = LightCurveDataset(global_path = global_path, local_path = local_path, y = y)
+dataset = ExoplanetData(data_dir = data_dir)
 n = len(dataset)
 num_train = int(n * train_size)
 num_val = int(n * val_size)
@@ -332,9 +340,3 @@ with torch.no_grad():
 accuracy, precision, recall, F1 = evaluate(pred_labels, y_list)
 print(f"Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {F1:.4f}")
     
-    
-    
-        
-        
-
-
