@@ -8,6 +8,16 @@
 ### Overview
 The ML pipeline supports two preprocessing versions (V2 and V4). Both use the same CNN architecture, but differ in data preprocessing methods.
 
+### Data Download
+
+Before running preprocessing, download the Kepler exoplanet dataset:
+
+```bash
+python downloader.py
+```
+
+This script downloads the dataset from Kaggle and copies the KOI (Kepler Object of Interest) CSV file to the project directory.
+
 ### Preprocessing Options
 
 #### V4 (Recommended - Latest)
