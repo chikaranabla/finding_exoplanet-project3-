@@ -30,7 +30,7 @@ This script downloads the dataset from Kaggle and copies the KOI (Kepler Object 
 
 **Note on V2**: Training curves show good performance, but validation curves indicate overfitting (loss increases, accuracy decreases).
 
-<img src="result_of_V2.png" alt="V2 Training Results" width="600"/>
+<img src="image/result_of_V2.png" alt="V2 Training Results" width="600"/>
 
 *V2 preprocessing results showing overfitting: training loss/accuracy improve, but validation loss increases and accuracy decreases.*
 
