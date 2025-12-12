@@ -30,6 +30,11 @@ def phase_fold(t, signal, omega, phi, num_bins, reduction='sum'):
 
     return bin_signal, bin_phases
 
+def normalize_signal(signal):
+    signal_min = np.min(signal)
+    signal_max = np.max(signal)
+    return (signal - signal_min) / (signal_max - signal_min)
+
 def make_dummy_signal(time_total, n_timesteps, omega=None, period=None, noise_ratio=0.1, signal_type="sin"):
 
     if omega is None and period is None:
@@ -44,7 +49,7 @@ def make_dummy_signal(time_total, n_timesteps, omega=None, period=None, noise_ra
         signal = 0.5+ 0.5*np.sin(omega * t)
     elif signal_type == "square":
         signal = 0.5+ 0.5*np.sign(np.sin(omega * t)+0.6)
-    return t, np.clip(signal + np.random.normal(0, noise_ratio, n_timesteps), 0, 1)
+    return t, normalize_signal(signal + np.random.normal(0, noise_ratio, n_timesteps))
 
 
 def best_omega(Omega, Pw):
