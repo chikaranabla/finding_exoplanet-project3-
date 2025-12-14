@@ -11,6 +11,16 @@ It produces two distinct outputs:
 1. For ML Team (Chikara, Iori, Levi): A normalized, fixed-length tensor of light curves suitable for CNN input.
 1. For Bayesian Team (Linus): A metadata key containing Kepler IDs (KIC) and true orbital periods to facilitate physics-based signal detection.
 
+## 📥 Download the Dataset
+The dataset is too large for GitHub, so it is hosted externally.
+**[Click here to download kepler_dataset_v1.zip via Google Drive](https://drive.google.com/file/d/1BCEJuv4PPvfDR1Ro-EoRoTfK9_bY5g5e/view?usp=sharing)**
+
+After downloading:
+1. Unzip the file.
+2. Place the `pipeline_output_final_data` folder in the same directory as these notebooks.
+
+
+
 ## How to use this code
 1. **Install requirements:**
    `pip install -r requirements.txt`
@@ -69,3 +79,4 @@ Key Decisions
 Known Challenges Handled:
 1. Network Instability: The pipeline includes robust error handling for truncated downloads (NASA MAST server timeouts). Failed downloads were automatically skipped and logged, ensuring the final dataset contains only valid, non-corrupted files.
 2. Leap Second Warnings: You may see ErfaWarning: dubious year when processing. These are harmless artifacts of the time conversion library and do not affect the flux values or model training.
+
