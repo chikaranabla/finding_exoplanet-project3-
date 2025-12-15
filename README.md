@@ -63,9 +63,8 @@ Output: Periodograms showing the most likely orbital periods and phase-folded co
 - Architecture: A dual-input 1D CNN.
     - Local Column: High-resolution view of the transit shape.
     - Global Column: Low-resolution view of the full light curve.
-- Optimization: Dynamically calculates layer shapes and pre-loads data into RAM for high-speed
 
-`training.3_run_bayesian.py` (The Analysis)
+`3_run_bayesian.py` (The Analysis)
 - Method: Calculates the posterior probability of a periodic signal vs. a constant noise model.
 - Features: Marginalizes over phase and model complexity to robustly estimate the orbital period ($P$) and frequency ($\omega$).
 
