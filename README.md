@@ -29,7 +29,7 @@ There are different options: Download (recommended because it takes hours to dow
 
 #### Option B: Generate the Data from Scratch
 ```bash
-python 1_generate_data.py
+python 1_generate_data.ipynb
 ```
 Input: `q1_q8_koi_2025.02.03_04.12.15.csv` (Kepler Object of Interest Catalog)
 Output: Creates the `pipeline_output_final_data/` folder containing .npz batches and metadata.
