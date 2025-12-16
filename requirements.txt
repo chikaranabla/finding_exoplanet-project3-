@@ -1,0 +1,9 @@
+pandas
+numpy
+scipy
+lightkurve
+matplotlib
+tqdm
+astropy
+numba
+progressbar

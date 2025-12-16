@@ -4,8 +4,8 @@
 **Course:** Physics 188/288: Bayesian Data Analysis & Machine Learning
 
 This project implements a complete end-to-end pipeline for detecting exoplanets in Kepler Space Telescope data. It combines two complementary approaches:
-1.  **Deep Learning (CNN):** A Convolutional Neural Network trained on phase-folded light curves to classify transit shapes.
-2.  **Bayesian Analysis:** A probabilistic frequency analysis to recover orbital periods from raw time-series data.
+1.  **Deep Learning (CNN):** A Convolutional Neural Network trained on phase-folded light curves to classify transit shapes. - Chikara Oe, Iori Adachi
+2.  **Bayesian Analysis:** A probabilistic frequency analysis to recover orbital periods from raw time-series data. - Linus Upson
 
 ---
 
@@ -44,28 +44,34 @@ Output: Training logs (Accuracy/Loss), Confusion Matrix plot, and Filter visuali
 Current Performance: ~85% Validation Accuracy.
 
 ### 4. Run Bayesian Analysis
-Perform frequency analysis on specific stars to recover their orbital periods.
+Perform frequency analysis on specific KOI object light curves to recover their orbital periods.
 ```bash
 python 3_run_bayesian.py
 ```
-Output: Periodograms showing the most likely orbital periods and phase-folded comparisons.
+Output: Data and figures showing the most likely orbital period and phase-folded comparisons.
 
 ---
 
 # Project Architecture
 
-`1_generate_data.ipynb` (The Pipeline)
+`1_generate_data.ipynb` (Data Loading/Preprocessing)
 - Dual-View Generation: Creates "Global Views" (full orbit, 2001 bins) and "Local Views" (transit zoom, 201 bins) for the CNN.
 - Random Folding: Handles False Positives that lack orbital periods by assigning random folding parameters, ensuring the CNN learns to reject non-periodic noise.
 - Augmentation: Uses the batman package to inject synthetic transits into quiet stars to balance the dataset.
 
-`2_train_cnn.py` (The Model)
+`2_train_cnn.py` (ML Model)
 - Architecture: A dual-input 1D CNN.
     - Local Column: High-resolution view of the transit shape.
     - Global Column: Low-resolution view of the full light curve.
 
-`3_run_bayesian.py` (The Analysis)
-- Method: Calculates the posterior probability of a periodic signal vs. a constant noise model.
-- Features: Marginalizes over phase and model complexity to robustly estimate the orbital period ($P$) and frequency ($\omega$).
+`3_run_bayesian.py` (Bayesian Analysis)
+- Runs Bayesian periodicity analysis on the light curves.
+- Uses functions from `BayesianSignal.py`.
+
+`BayesianSignal.py` (Functions For Bayesian Analysis)
+- Functions include:
+    - Calculating the posterior probability of a periodic signal vs. a constant noise model and a non-periodic model.
+    - Marginalizing over phase and model bins to estimate the orbital frequency ($\omega$).
+    - Experimental models, phase-folding, other helpers.
 
 
